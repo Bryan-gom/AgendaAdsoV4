@@ -1,0 +1,46 @@
+{
+  "contactos": [
+    {
+      "id": "1",
+      "nombre": "Carlos Gómez",
+      "telefono": "3101234567",
+      "correo": "carlos.gomez@sena.edu.co",
+      "etiqueta": "Amigos"
+    },
+    {
+      "id": "2",
+      "nombre": "Laura Martínez",
+      "telefono": "3209876543",
+      "correo": "laura.m@empresa.com",
+      "etiqueta": "Trabajo"
+    },
+    {
+      "id": "3",
+      "nombre": "Andrés Felipe",
+      "telefono": "3005551234",
+      "correo": "andres.felipe@correo.com",
+      "etiqueta": "Familia"
+    },
+    {
+      "id": "4",
+      "nombre": "Valery Quintero",
+      "telefono": "3158889900",
+      "correo": "valery.q@gmail.com",
+      "etiqueta": "Familia"
+    },
+    {
+      "id": "5",
+      "nombre": "Gustavo Bolaños",
+      "telefono": "3014445566",
+      "correo": "gbolanos@sena.edu.co",
+      "etiqueta": "Trabajo"
+    },
+    {
+      "id": "6",
+      "nombre": "Zulma Patricia",
+      "telefono": "3187771122",
+      "correo": "zulma.p@correo.com",
+      "etiqueta": "Otros"
+    }
+  ]
+}
