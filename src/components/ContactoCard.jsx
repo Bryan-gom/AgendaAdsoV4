@@ -1,10 +1,10 @@
-// ==========================================
-// COMPONENTE: ContactoCard
-// ==========================================
+// =======================================================
+// COMPONENTE: ContactoCard (Agenda ADSO v9 - Clase 11)
+// =======================================================
 // Renderiza la tarjeta individual para cada contacto de la agenda.
-// Recibe los datos del contacto y la función 'onEliminar' por props.
+// Recibe los datos del contacto y las funciones 'onEditar' y 'onEliminar' por props.
 
-function ContactoCard({ nombre, telefono, correo, etiqueta, onEliminar }) {
+function ContactoCard({ nombre, telefono, correo, etiqueta, onEditar, onEliminar }) {
   // Función auxiliar para asignar un color agradable según la etiqueta
   const getBadgeColor = (tag) => {
     switch (tag) {
@@ -43,13 +43,23 @@ function ContactoCard({ nombre, telefono, correo, etiqueta, onEliminar }) {
         </p>
       </div>
 
-      {/* Botón para Eliminar */}
-      <div>
+      {/* Botones de Acción (Editar y Eliminar) */}
+      <div className="flex items-center gap-2">
         <button
-          onClick={onEliminar}
-          className="w-full md:w-auto px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors cursor-pointer"
+          type="button"
+          onClick={onEditar}
+          className="w-full md:w-auto px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
         >
-          🗑️ Eliminar
+          <span>✏️</span>
+          <span>Editar</span>
+        </button>
+        <button
+          type="button"
+          onClick={onEliminar}
+          className="w-full md:w-auto px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+        >
+          <span>🗑️</span>
+          <span>Eliminar</span>
         </button>
       </div>
     </div>

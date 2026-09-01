@@ -1,91 +1,168 @@
-// =======================================================
-// COMPONENTE PRINCIPAL: App (Agenda ADSO v8 - Búsqueda y Orden)
-// =======================================================
-// Orquesta el estado global de la agenda, la comunicación con la API REST,
-// el filtrado reactivo multircampo, el ordenamiento inmutable y el renderizado.
-
 import { useState, useEffect } from "react";
-// Importamos la configuración global y metadatos de la aplicación
-import { APP_INFO } from "./config";
-// Importamos la capa de servicios desacoplada
-import { listarContactos, crearContacto, eliminarContactoPorId } from "./api";
-// Importamos componentes de interfaz modulares
 import FormularioContacto from "./components/FormularioContacto";
 import ContactoCard from "./components/ContactoCard";
+import { APP_INFO } from "./config";
+import {
+  listarContactos,
+  crearContacto,
+  actualizarContacto,
+  eliminarContactoPorId,
+} from "./api";
 
 function App() {
-  // Estado base: lista de contactos obtenida de la API
+  // =======================================================
+  // ESTADOS PRINCIPALES DE LA APLICACIÓN
+  // =======================================================
   const [contactos, setContactos] = useState([]);
-  // Estados para control de carga asíncrona y errores
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
-  // =======================================================
-  // NUEVOS ESTADOS PARA BÚSQUEDA Y ORDENAMIENTO (CLASE 10)
-  // =======================================================
-  // Estado para el término de búsqueda ingresado en el input controlado
-  const [busqueda, setBusqueda] = useState(
-    () => new URLSearchParams(window.location.search).get("q") || ""
-  );
-  // Estado booleano para alternar orden: true = A-Z (Ascendente), false = Z-A (Descendente)
-  const [ordenAsc, setOrdenAsc] = useState(
-    () => new URLSearchParams(window.location.search).get("ord") !== "desc"
-  );
+  // Inicialización directa de estados (soporte para parámetros URL en pruebas y demo)
+  const [mensajeExito, setMensajeExito] = useState(() => {
+    const urlMsg = new URLSearchParams(window.location.search).get("success");
+    return urlMsg ? decodeURIComponent(urlMsg) : "";
+  });
 
-  // Carga inicial asíncrona de contactos al montar el componente (GET)
+  // Estado para la búsqueda y el ordenamiento (Clase 10)
+  const [busqueda, setBusqueda] = useState(() => {
+    return new URLSearchParams(window.location.search).get("q") || "";
+  });
+
+  const [ordenAsc, setOrdenAsc] = useState(() => {
+    return new URLSearchParams(window.location.search).get("ord") !== "desc";
+  });
+
+  // Estado para el contacto en edición (Clase 11)
+  // null = Modo creación, Objeto = Modo edición
+  const [contactoEnEdicion, setContactoEnEdicion] = useState(null);
+
+  // =======================================================
+  // EFECTO: CARGA INICIAL DE DATOS DESDE LA API (GET)
+  // =======================================================
   useEffect(() => {
-    const cargarContactosIniciales = async () => {
+    const editId = new URLSearchParams(window.location.search).get("edit");
+
+    const obtenerContactos = async () => {
       try {
         setCargando(true);
         setError("");
         const data = await listarContactos();
         setContactos(data);
+
+        // Si se especificó un ID de edición en URL, cargarlo automáticamente
+        if (editId) {
+          const c = data.find((item) => String(item.id) === String(editId));
+          if (c) setContactoEnEdicion(c);
+        }
       } catch (err) {
-        console.error("Error al cargar contactos:", err);
+        console.error(err);
         setError(
-          "No se pudieron cargar los contactos. Verifica que JSON Server esté activo en el puerto configurado."
+          "Error al conectar con el servidor (JSON Server). Verifica que esté encendido en el puerto 3000."
         );
       } finally {
         setCargando(false);
       }
     };
 
-    cargarContactosIniciales();
+    obtenerContactos();
   }, []);
 
-  // Manejador para agregar un nuevo contacto mediante la API (POST)
-  const handleAgregarContacto = async (nuevoContacto) => {
-    try {
-      setError("");
-      const creado = await crearContacto(nuevoContacto);
-      // Inserción inmutable en el estado local base
-      setContactos((prev) => [...prev, creado]);
-    } catch (err) {
-      console.error("Error al guardar contacto:", err);
-      setError(
-        "No se pudo guardar el contacto. Verifica la conexión con el servidor e intenta nuevamente."
-      );
-      throw err; // Permite al formulario controlar su estado local (enviando)
+  // Limpiar mensajes de éxito automáticamente tras 4 segundos
+  useEffect(() => {
+    if (mensajeExito) {
+      const timer = setTimeout(() => setMensajeExito(""), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [mensajeExito]);
+
+  // =======================================================
+  // MANEJADORES DE EDICIÓN (Clase 11)
+  // =======================================================
+  const handleEditarClick = (contacto) => {
+    setContactoEnEdicion(contacto);
+    setError("");
+    // Scroll suave hacia el formulario para mejorar la experiencia de usuario
+    const formElement = document.getElementById("formulario-contacto");
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
-  // Manejador para eliminar un contacto por su ID mediante la API (DELETE)
+  const handleCancelarEdicion = () => {
+    setContactoEnEdicion(null);
+  };
+
+  // =======================================================
+  // MANEJADOR UNIFICADO DE GUARDADO (POST / PUT)
+  // =======================================================
+  const handleGuardarContacto = async (datosForm) => {
+    setError("");
+    try {
+      if (contactoEnEdicion) {
+        // --- MODO EDICIÓN (PUT) ---
+        const contactoActualizado = await actualizarContacto(
+          contactoEnEdicion.id,
+          datosForm
+        );
+
+        // Actualización inmutable del arreglo de contactos
+        setContactos((prev) =>
+          prev.map((c) =>
+            c.id === contactoEnEdicion.id ? contactoActualizado : c
+          )
+        );
+
+        setContactoEnEdicion(null);
+        setMensajeExito(`¡Contacto "${contactoActualizado.nombre}" actualizado correctamente!`);
+      } else {
+        // --- MODO CREACIÓN (POST) ---
+        const nuevoContacto = await crearContacto(datosForm);
+        setContactos((prev) => [...prev, nuevoContacto]);
+        setMensajeExito(`¡Contacto "${nuevoContacto.nombre}" guardado con éxito!`);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(
+        contactoEnEdicion
+          ? "No se pudo actualizar el contacto en el servidor."
+          : "No se pudo guardar el nuevo contacto en el servidor."
+      );
+      throw err; // Permite al formulario gestionar el estado de envío
+    }
+  };
+
+  // =======================================================
+  // MANEJADOR DE ELIMINACIÓN (DELETE)
+  // =======================================================
   const handleEliminarContacto = async (id) => {
+    const contactoAEliminar = contactos.find((c) => c.id === id);
+    const nombre = contactoAEliminar ? contactoAEliminar.nombre : "el contacto";
+
+    const confirmar = window.confirm(
+      `¿Estás seguro de que deseas eliminar a "${nombre}" de tu agenda?`
+    );
+    if (!confirmar) return;
+
     try {
       setError("");
       await eliminarContactoPorId(id);
-      // Filtrado inmutable para actualizar el estado base
-      setContactos((prev) => prev.filter((contacto) => contacto.id !== id));
+
+      // Si el contacto que se está eliminando estaba en edición, cancelar la edición
+      if (contactoEnEdicion && contactoEnEdicion.id === id) {
+        setContactoEnEdicion(null);
+      }
+
+      setContactos((prev) => prev.filter((c) => c.id !== id));
+      setMensajeExito(`Contacto "${nombre}" eliminado correctamente.`);
     } catch (err) {
-      console.error("Error al eliminar contacto:", err);
+      console.error(err);
       setError("No se pudo eliminar el contacto del servidor.");
     }
   };
 
   // =======================================================
-  // 1. TRANSFORMACIÓN: FILTRADO REACTIVO MULTIRCAMPO
+  // TRANSFORMACIÓN REACTIVA 1: FILTRADO MULTICAMPO
   // =======================================================
-  // Incluye búsqueda en: nombre, correo, etiqueta y teléfono (Mini Reto 1)
   const contactosFiltrados = contactos.filter((c) => {
     const termino = busqueda.trim().toLowerCase();
     if (!termino) return true;
@@ -93,7 +170,7 @@ function App() {
     const nombre = (c.nombre || "").toLowerCase();
     const correo = (c.correo || "").toLowerCase();
     const etiqueta = (c.etiqueta || "").toLowerCase();
-    const telefono = (c.telefono || "").toString().toLowerCase(); // Mini Reto 1
+    const telefono = (c.telefono || "").toString().toLowerCase();
 
     return (
       nombre.includes(termino) ||
@@ -104,22 +181,21 @@ function App() {
   });
 
   // =======================================================
-  // 2. TRANSFORMACIÓN: ORDENAMIENTO INMUTABLE (A-Z / Z-A)
+  // TRANSFORMACIÓN REACTIVA 2: ORDENAMIENTO INMUTABLE
   // =======================================================
-  // Creamos una copia con spread [...] para NO mutar el array original
   const contactosOrdenados = [...contactosFiltrados].sort((a, b) => {
-    const nombreA = (a.nombre || "").toLowerCase();
-    const nombreB = (b.nombre || "").toLowerCase();
-
-    if (nombreA < nombreB) return ordenAsc ? -1 : 1;
-    if (nombreA > nombreB) return ordenAsc ? 1 : -1;
-    return 0;
+    const nombreA = a.nombre || "";
+    const nombreB = b.nombre || "";
+    const comparacion = nombreA.localeCompare(nombreB, "es", { sensitivity: "base" });
+    return ordenAsc ? comparacion : -comparacion;
   });
 
-  // Mensaje formateado para el contador de resultados (Mini Reto 2)
+  // Texto amigable para el contador de resultados
   const totalVisibles = contactosOrdenados.length;
   const textoContador =
-    totalVisibles === 1 ? "Mostrando 1 contacto" : `Mostrando ${totalVisibles} contactos`;
+    totalVisibles === 1
+      ? "Mostrando 1 contacto"
+      : `Mostrando ${totalVisibles} contactos`;
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4">
@@ -137,24 +213,58 @@ function App() {
           </p>
         </header>
 
-        {/* Banner de error amigable */}
-        {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium flex items-start gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
+        {/* Notificación de éxito */}
+        {mensajeExito && (
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-medium flex items-center justify-between shadow-xs transition-all animate-fade-in">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">✅</span>
+              <span>{mensajeExito}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMensajeExito("")}
+              className="text-emerald-600 hover:text-emerald-900 text-xs font-bold px-2 py-1 rounded cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        {/* Componente del Formulario de Contactos */}
-        <FormularioContacto onAgregar={handleAgregarContacto} />
+        {/* Banner de error amigable */}
+        {error && (
+          <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium flex items-start justify-between shadow-xs">
+            <div className="flex items-start gap-2">
+              <span className="text-lg">⚠️</span>
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError("")}
+              className="text-red-600 hover:text-red-900 text-xs font-bold px-2 py-1 rounded cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Componente del Formulario de Contactos (Creación / Edición) */}
+        <FormularioContacto
+          onGuardar={handleGuardarContacto}
+          contactoEnEdicion={contactoEnEdicion}
+          onCancelarEdicion={handleCancelarEdicion}
+        />
 
         {/* Sección del Listado de Contactos con Búsqueda y Ordenamiento */}
         <section className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h2 className="text-xl font-bold text-slate-800">
-              📋 Lista de Contactos ({contactos.length})
+            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <span>📋 Lista de Contactos</span>
+              <span className="text-sm font-normal text-slate-500">
+                ({contactos.length} total)
+              </span>
             </h2>
-            {/* Mini Reto 2: Contador dinámico con gramática adaptativa */}
+
+            {/* Contador dinámico con gramática adaptativa */}
             {contactos.length > 0 && (
               <span className="text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full w-fit">
                 {textoContador}
@@ -181,7 +291,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setBusqueda("")}
-                    className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-full w-5 h-5 flex items-center justify-center transition"
+                    className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-full w-5 h-5 flex items-center justify-center transition cursor-pointer"
                     title="Limpiar búsqueda"
                   >
                     ✕
@@ -193,11 +303,11 @@ function App() {
               <button
                 type="button"
                 onClick={() => setOrdenAsc((prev) => !prev)}
-                className="inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl border border-slate-200 transition-colors shadow-2xs whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl border border-slate-200 transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
               >
                 <span>{ordenAsc ? "🔤 Orden: A-Z" : "🔤 Orden: Z-A"}</span>
-                <span className="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
-                  {ordenAsc ? "Ascendente" : "Descendente"}
+                <span className="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                  {ordenAsc ? "Asc" : "Desc"}
                 </span>
               </button>
             </div>
@@ -205,8 +315,8 @@ function App() {
 
           {/* Renderizado condicional según estado de carga, lista vacía o filtro sin coincidencias */}
           {cargando ? (
-            <div className="text-center py-10 text-slate-500 text-sm">
-              ⏳ Cargando contactos desde la API...
+            <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 text-slate-500 text-sm">
+              <span className="animate-spin inline-block mr-2">⏳</span> Cargando contactos desde la API...
             </div>
           ) : contactos.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-500">
@@ -225,7 +335,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => setBusqueda("")}
-                className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800 underline"
+                className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
               >
                 Restablecer búsqueda
               </button>
@@ -239,6 +349,7 @@ function App() {
                 telefono={contacto.telefono}
                 correo={contacto.correo}
                 etiqueta={contacto.etiqueta}
+                onEditar={() => handleEditarClick(contacto)}
                 onEliminar={() => handleEliminarContacto(contacto.id)}
               />
             ))

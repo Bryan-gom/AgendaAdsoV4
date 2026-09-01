@@ -42,5 +42,6 @@
       "correo": "zulma.p@correo.com",
       "etiqueta": "Otros"
     }
-  ]
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
 }

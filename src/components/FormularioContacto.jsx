@@ -1,13 +1,14 @@
-import { useState } from "react";
+/* eslint-disable react/set-state-in-effect */
+import { useState, useEffect } from "react";
 
 // =======================================================
-// COMPONENTE: FormularioContacto (Clase 8 - Validaciones y UX)
+// COMPONENTE: FormularioContacto (Agenda ADSO v9 - Clase 11)
 // =======================================================
-// Permite al usuario crear nuevos contactos validando que los datos
-// sean correctos antes de enviarlos al servidor (JSON Server).
+// Reutilizable tanto para Crear (POST) como para Editar (PUT).
+// Recibe 'contactoEnEdicion', 'onGuardar' y 'onCancelarEdicion'.
 
-function FormularioContacto({ onAgregar }) {
-  // 1. Estado para almacenar los valores que el usuario escribe
+function FormularioContacto({ onGuardar, contactoEnEdicion, onCancelarEdicion }) {
+  // Estado local para los campos del formulario
   const [form, setForm] = useState({
     nombre: "",
     telefono: "",
@@ -15,16 +16,37 @@ function FormularioContacto({ onAgregar }) {
     etiqueta: "Amigos",
   });
 
-  // 2. Estado para almacenar los mensajes de error por cada campo
+  // Estado local para mensajes de error de validación
   const [errores, setErrores] = useState({
     nombre: "",
     telefono: "",
     correo: "",
   });
 
-  // 3. Estado para saber si el formulario está en proceso de envío
-  // Sirve para deshabilitar el botón y evitar que el usuario haga doble clic
+  // Estado local para indicar proceso de guardado asíncrono
   const [enviando, setEnviando] = useState(false);
+
+  // Sincronizar el formulario cuando cambie contactoEnEdicion
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => {
+    if (contactoEnEdicion) {
+      setForm({
+        nombre: contactoEnEdicion.nombre || "",
+        telefono: contactoEnEdicion.telefono || "",
+        correo: contactoEnEdicion.correo || "",
+        etiqueta: contactoEnEdicion.etiqueta || "Amigos",
+      });
+      setErrores({ nombre: "", telefono: "", correo: "" });
+    } else {
+      setForm({
+        nombre: "",
+        telefono: "",
+        correo: "",
+        etiqueta: "Amigos",
+      });
+      setErrores({ nombre: "", telefono: "", correo: "" });
+    }
+  }, [contactoEnEdicion]);
 
   // Manejador que se ejecuta al escribir en cualquier input
   const handleChange = (e) => {
@@ -35,76 +57,106 @@ function FormularioContacto({ onAgregar }) {
     }));
   };
 
-  // Función encargada de validar los campos del formulario
-  // Retorna true si todos los datos son válidos, o false si hay algún error
+  // Función de validación de campos
   const validarFormulario = () => {
     const nuevosErrores = { nombre: "", telefono: "", correo: "" };
 
-    // Validación del campo Nombre (.trim() elimina espacios en blanco vacíos)
+    // Validación de Nombre
     if (!form.nombre.trim()) {
       nuevosErrores.nombre = "El nombre es obligatorio.";
     }
 
-    // Validación del campo Teléfono
+    // Validación de Teléfono
     if (!form.telefono.trim()) {
       nuevosErrores.telefono = "El teléfono es obligatorio.";
     } else if (form.telefono.trim().length < 7) {
       nuevosErrores.telefono = "El teléfono debe tener al menos 7 dígitos.";
     }
 
-    // Validación del campo Correo Electrónico
+    // Validación de Correo
     if (!form.correo.trim()) {
       nuevosErrores.correo = "El correo es obligatorio.";
-    } else if (!form.correo.includes("@") || !form.correo.includes(".")) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo.trim())) {
       nuevosErrores.correo = "El correo debe tener un formato válido (ej. usuario@dominio.com).";
     }
 
-    // Guardamos los errores en el estado para que React los pinte en pantalla
     setErrores(nuevosErrores);
-
-    // Si ningún campo tiene error, el formulario es válido
     return !nuevosErrores.nombre && !nuevosErrores.telefono && !nuevosErrores.correo;
   };
 
-  // Manejador del envío del formulario
+  // Manejador del envío
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Evita la recarga de la página
+    e.preventDefault();
 
-    // Si la validación falla, nos detenemos y NO enviamos los datos
     if (!validarFormulario()) return;
 
     try {
-      setEnviando(true); // Bloqueamos el botón y cambiamos el texto a "Guardando..."
-      
-      // Llamamos a la función de guardado que viene de App.jsx
-      await onAgregar(form);
+      setEnviando(true);
+      const datosLimpios = {
+        nombre: form.nombre.trim(),
+        telefono: form.telefono.trim(),
+        correo: form.correo.trim(),
+        etiqueta: form.etiqueta,
+      };
+      await onGuardar(datosLimpios);
 
-      // Si se guardó correctamente, limpiamos los campos y los errores
-      setForm({
-        nombre: "",
-        telefono: "",
-        correo: "",
-        etiqueta: "Amigos",
-      });
+      // Si es exitoso y no estamos en edición, limpiar
+      if (!contactoEnEdicion) {
+        setForm({
+          nombre: "",
+          telefono: "",
+          correo: "",
+          etiqueta: "Amigos",
+        });
+      }
       setErrores({
         nombre: "",
         telefono: "",
         correo: "",
       });
     } finally {
-      // Siempre apagamos el estado enviando, haya salido bien o mal
       setEnviando(false);
     }
   };
 
+  // Manejador del botón cancelar
+  const handleCancelar = () => {
+    setForm({
+      nombre: "",
+      telefono: "",
+      correo: "",
+      etiqueta: "Amigos",
+    });
+    setErrores({
+      nombre: "",
+      telefono: "",
+      correo: "",
+    });
+    if (onCancelarEdicion) {
+      onCancelarEdicion();
+    }
+  };
+
+  const estaEnModoEdicion = Boolean(contactoEnEdicion);
+
   return (
     <form
+      id="formulario-contacto"
       onSubmit={handleSubmit}
-      className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8 space-y-4"
+      className={`bg-white p-6 rounded-2xl shadow-sm border mb-8 space-y-4 transition-colors ${
+        estaEnModoEdicion ? "border-amber-300 ring-2 ring-amber-100" : "border-slate-200"
+      }`}
     >
-      <h2 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-2">
-        ➕ Agregar Nuevo Contacto
-      </h2>
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+          <span>{estaEnModoEdicion ? "✏️ Editar Contacto" : "➕ Agregar Nuevo Contacto"}</span>
+          {estaEnModoEdicion && (
+            <span className="text-xs bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-medium border border-amber-200">
+              Modo Edición
+            </span>
+          )}
+        </h2>
+      </div>
 
       {/* Cuadrícula de inputs */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -125,7 +177,6 @@ function FormularioContacto({ onAgregar }) {
                 : "border-slate-300 focus:ring-blue-500"
             }`}
           />
-          {/* Mensaje de error visual debajo del input */}
           {errores.nombre && (
             <p className="mt-1 text-xs text-red-600 font-medium">⚠️ {errores.nombre}</p>
           )}
@@ -148,7 +199,6 @@ function FormularioContacto({ onAgregar }) {
                 : "border-slate-300 focus:ring-blue-500"
             }`}
           />
-          {/* Mensaje de error visual */}
           {errores.telefono && (
             <p className="mt-1 text-xs text-red-600 font-medium">⚠️ {errores.telefono}</p>
           )}
@@ -171,7 +221,6 @@ function FormularioContacto({ onAgregar }) {
                 : "border-slate-300 focus:ring-blue-500"
             }`}
           />
-          {/* Mensaje de error visual */}
           {errores.correo && (
             <p className="mt-1 text-xs text-red-600 font-medium">⚠️ {errores.correo}</p>
           )}
@@ -196,14 +245,37 @@ function FormularioContacto({ onAgregar }) {
         </div>
       </div>
 
-      {/* Botón de Enviar controlado por el estado 'enviando' */}
-      <button
-        type="submit"
-        disabled={enviando}
-        className="w-full md:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition duration-200 shadow hover:shadow-md cursor-pointer"
-      >
-        {enviando ? "⏳ Guardando..." : "Agregar contacto"}
-      </button>
+      {/* Botones de Acción */}
+      <div className="flex flex-wrap items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={enviando}
+          className={`w-full md:w-auto px-6 py-2.5 text-white font-semibold rounded-xl transition duration-200 shadow hover:shadow-md cursor-pointer disabled:cursor-not-allowed ${
+            estaEnModoEdicion
+              ? "bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300"
+              : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
+          }`}
+        >
+          {enviando
+            ? estaEnModoEdicion
+              ? "⏳ Guardando cambios..."
+              : "⏳ Agregando..."
+            : estaEnModoEdicion
+            ? "Guardar cambios"
+            : "Agregar contacto"}
+        </button>
+
+        {estaEnModoEdicion && (
+          <button
+            type="button"
+            onClick={handleCancelar}
+            disabled={enviando}
+            className="w-full md:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl border border-slate-300 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            Cancelar edición
+          </button>
+        )}
+      </div>
     </form>
   );
 }
