@@ -57,7 +57,7 @@ function App() {
       } catch (err) {
         console.error(err);
         setError(
-          "Error al conectar con el servidor (JSON Server). Verifica que esté encendido en el puerto 3000."
+          "Error al conectar con el servidor en Render. Verifica tu conexión o el estado del Web Service."
         );
       } finally {
         setCargando(false);
